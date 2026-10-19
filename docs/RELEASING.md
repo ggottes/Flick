@@ -46,7 +46,8 @@ Both flavors ship from CI/one machine with `ANDROID_NDK_HOME` set — see
 
 `.github/workflows/release-apk.yml` builds a signed release APK:
 
-- **On a `v*` tag** it builds the `full` flavor, attaches
+- **On a version tag** (`v0.24.0` or the bare `0.24.0-beta.1` this repo already
+  uses) it builds the `full` flavor, attaches
   `flick_<version>-release_full.apk` plus a bare-hex `.sha1` to the GitHub
   Release, and creates the release as a **prerelease** if it does not exist
   yet. Publish it by hand once the notes are ready.

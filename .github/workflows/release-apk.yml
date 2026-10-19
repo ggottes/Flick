@@ -8,7 +8,8 @@ name: Release APK
 # Docs: docs/RELEASING.md
 on:
   push:
-    tags: ['v*']
+    # `v0.24.0` and the repo's existing bare `0.24.0-beta.1` both release.
+    tags: ['v*', '[0-9]*']
   workflow_dispatch:
     inputs:
       flavor:
@@ -168,7 +169,7 @@ jobs:
           retention-days: 14
 
       - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ github.token }}
           NAME: ${{ steps.asset.outputs.name }}
