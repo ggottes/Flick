@@ -1,0 +1,188 @@
+name: Release APK
+
+# Builds a release APK and (on a version tag) attaches it to a GitHub Release.
+#
+#   full  -> sideload / GitHub Releases, declares All Files Access
+#   play  -> Google Play, no All Files Access (use `flutter build appbundle`)
+#
+# Docs: docs/RELEASING.md
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      flavor:
+        description: Build flavor
+        type: choice
+        options: [full, play]
+        default: full
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write # gh release create/upload
+
+jobs:
+  build-apk:
+    name: Build ${{ inputs.flavor || 'full' }} APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      FLAVOR: ${{ inputs.flavor || 'full' }}
+      NDK_VERSION: 28.2.13676358
+    steps:
+      - uses: actions/checkout@v7
+
+      # A release build needs the real keystore: without key.properties Gradle
+      # fails on a signingConfig with a null storeFile, and a throwaway key
+      # would break in-place updates for anyone who already installed a build.
+      - name: Check signing secrets
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE" ]; then
+            echo "::error::Missing repository secrets. Add these under Settings -> Secrets and variables -> Actions:"
+            echo "::error::  ANDROID_KEYSTORE_BASE64    base64 of the release .jks"
+            echo "::error::  ANDROID_KEYSTORE_PASSWORD"
+            echo "::error::  ANDROID_KEY_ALIAS"
+            echo "::error::  ANDROID_KEY_PASSWORD"
+            exit 1
+          fi
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # pubspec.lock needs Dart >=3.12 / Flutter >=3.44; pin the version this
+      # project is verified against instead of floating on stable.
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+          key: release-apk
+
+      # The app compiles against SDK 37 (build-tools 37) and pins
+      # flutter.ndkVersion; cargokit resolves the NDK from $ANDROID_HOME/ndk.
+      # None of the three is on the runner image by default.
+      - name: Install Android SDK packages
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses >/dev/null
+          "$SDKMANAGER" --install \
+            "platforms;android-37.0" \
+            "build-tools;37.0.0" \
+            "ndk;$NDK_VERSION"
+          # copyNdkLibs resolves ANDROID_NDK_HOME first; point it at the
+          # just-installed side-by-side NDK.
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+
+      - name: Decode keystore
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "$KEYSTORE" | base64 --decode > "$RUNNER_TEMP/release.jks"
+          cat > android/key.properties <<EOF
+          storeFile=$RUNNER_TEMP/release.jks
+          storePassword=$STORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
+          chmod 600 android/key.properties
+
+      # com.google.gms.google-services is applied in android/app/build.gradle.kts
+      # but nothing in the app initialises Firebase, and the file is gitignored.
+      # The plugin hard-fails on a missing google-services.json, so use the real
+      # one when the secret exists and a minimal placeholder otherwise. The
+      # secret is a full JSON document, so not every secret store can hold it;
+      # GOOGLE_SERVICES_JSON_BASE64 is the fallback for those.
+      - name: Provide google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+          elif [ -n "$GOOGLE_SERVICES_JSON_BASE64" ]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > android/app/google-services.json
+          else
+            cat > android/app/google-services.json <<'EOF'
+          {
+            "project_info": {
+              "project_number": "000000000000",
+              "project_id": "flick-unconfigured",
+              "storage_bucket": "flick-unconfigured.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:000000000000:android:0000000000000000",
+                  "android_client_info": { "package_name": "com.mossapps.flick" }
+                },
+                "api_key": [{ "current_key": "unconfigured" }]
+              }
+            ],
+            "configuration_version": "1"
+          }
+          EOF
+          fi
+
+      - name: pub get
+        run: flutter pub get
+
+      - name: Build APK
+        run: flutter build apk --flavor "$FLAVOR" --release
+
+      - name: Prepare release asset
+        id: asset
+        run: |
+          VERSION=$(sed -n 's/^version: *\([^+]*\).*/\1/p' pubspec.yaml)
+          APK="build/app/outputs/apk/$FLAVOR/release/app-$FLAVOR-release.apk"
+          NAME="flick_${VERSION}-release_${FLAVOR}.apk"
+          cp "$APK" "$RUNNER_TEMP/$NAME"
+          # Bare hex digest, no filename and no trailing newline, matching the
+          # .sha1 assets published with earlier releases.
+          (cd "$RUNNER_TEMP" && sha1sum "$NAME" | cut -d' ' -f1 | tr -d '\n' > "$NAME.sha1")
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          ls -lh "$RUNNER_TEMP/$NAME"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: flick-${{ env.FLAVOR }}-apk
+          path: |
+            ${{ runner.temp }}/${{ steps.asset.outputs.name }}
+            ${{ runner.temp }}/${{ steps.asset.outputs.name }}.sha1
+          retention-days: 14
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NAME: ${{ steps.asset.outputs.name }}
+          VERSION: ${{ steps.asset.outputs.version }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" \
+              "$RUNNER_TEMP/$NAME" "$RUNNER_TEMP/$NAME.sha1" \
+              --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              "$RUNNER_TEMP/$NAME" "$RUNNER_TEMP/$NAME.sha1" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Flick $VERSION" \
+              --notes "Built from \`$GITHUB_SHA\` with the \`$FLAVOR\` flavor." \
+              --prerelease
+          fi
