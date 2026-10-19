@@ -5139,7 +5139,11 @@ class PlayerService {
   Future<void> _savePosition({Song? song, Duration? position}) async {
     final resolvedSong = song ?? currentSongNotifier.value;
     if (!_shouldPersistSong(resolvedSong)) return;
-    final persistedSong = resolvedSong!;
+    // Source-backed addon tracks are ephemeral (no library row, non-numeric
+    // id). Persisting one as "last played" would replace the local resume
+    // point with a song the next launch can neither restore nor display.
+    if (int.tryParse(resolvedSong!.id) == null) return;
+    final persistedSong = resolvedSong;
 
     try {
       await _lastPlayedService.saveLastPlayed(

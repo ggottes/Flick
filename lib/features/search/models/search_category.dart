@@ -10,6 +10,7 @@ enum SearchCategory {
   folders,
   year,
   playlists,
+  addon,
 }
 
 extension SearchCategoryX on SearchCategory {
@@ -29,6 +30,8 @@ extension SearchCategoryX on SearchCategory {
         return l10n.year;
       case SearchCategory.playlists:
         return l10n.playlists;
+      case SearchCategory.addon:
+        return l10n.addons;
     }
   }
 
@@ -50,6 +53,8 @@ extension SearchCategoryX on SearchCategory {
         return LucideIcons.calendar;
       case SearchCategory.playlists:
         return LucideIcons.listMusic;
+      case SearchCategory.addon:
+        return LucideIcons.plug;
     }
   }
 

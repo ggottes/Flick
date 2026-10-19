@@ -10,13 +10,14 @@ import '../../../core/utils/app_haptics.dart';
 import '../../../data/database.dart';
 import '../../../data/repositories/song_repository.dart';
 import '../../../services/library_scanner_service.dart' show ScanProgress;
+import '../../../services/sources/addon_service.dart';
 import '../../../services/sources/network_source_service.dart';
 import '../widgets/settings_widgets.dart';
 import 'network_server_edit_screen.dart';
 import 'package:flick/l10n/l10n.dart';
 
-/// Manage configured network music servers (Subsonic, Jellyfin, WebDAV,
-/// UPnP/DLNA, SMB, Tidal).
+/// Manage configured network music servers and addons (Subsonic, Jellyfin,
+/// WebDAV, UPnP/DLNA, SMB, Tidal, generic addons).
 class NetworkSourcesScreen extends StatefulWidget {
   const NetworkSourcesScreen({super.key});
 
@@ -228,6 +229,9 @@ class _NetworkSourcesScreenState extends State<NetworkSourcesScreen> {
   Widget _buildServerRow(BuildContext context, NetworkServerEntity server) {
     final isSyncing = _syncingId == server.id;
     final songCount = _songCounts[server.id] ?? 0;
+    // Addons expose search/stream only — there is no catalogue to sync, so a
+    // refresh button would do nothing on every tap.
+    final isAddon = server.protocol == NetworkProtocol.addon;
 
     return Material(
       color: Colors.transparent,
@@ -241,7 +245,7 @@ class _NetworkSourcesScreenState extends State<NetworkSourcesScreen> {
               Row(
                 children: [
                   ColoredSettingsIcon(
-                    icon: LucideIcons.server,
+                    icon: isAddon ? LucideIcons.plug : LucideIcons.server,
                     backgroundColor: AppColors.glassBackgroundStrong,
                     iconColor: context.adaptiveTextSecondary,
                   ),
@@ -280,7 +284,7 @@ class _NetworkSourcesScreenState extends State<NetworkSourcesScreen> {
                       ],
                     ),
                   ),
-                  if (!isSyncing)
+                  if (!isSyncing && !isAddon)
                     IconButton(
                       tooltip: l10n.syncNow,
                       onPressed: () {
@@ -298,6 +302,8 @@ class _NetworkSourcesScreenState extends State<NetworkSourcesScreen> {
               const SizedBox(height: AppConstants.spacingSm),
               if (isSyncing)
                 _buildSyncPanel(context)
+              else if (isAddon)
+                _buildAddonMetaRow(context, server)
               else
                 _buildMetaRow(context, server, songCount),
             ],
@@ -331,6 +337,41 @@ class _NetworkSourcesScreenState extends State<NetworkSourcesScreen> {
         Flexible(
           child: Text(
             parts.join('  ·  '),
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: context.adaptiveTextTertiary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Addons have no library, so "N songs · synced DATE" is meaningless.
+  /// Show the manifest identity from the stored blob instead, and fall back to
+  /// a plain "search only" hint when the token predates the current build.
+  Widget _buildAddonMetaRow(BuildContext context, NetworkServerEntity server) {
+    final stored = AddonService.parseStored(server.token);
+    final manifest = stored?.manifest;
+    // `displayName` is already "Name 1.2.0" when the addon declares a version.
+    final detail = manifest == null
+        ? l10n.searchOnlyAddon
+        : '${manifest.displayName}  ·  '
+            '${manifest.supportsStream ? l10n.addonSearchAndStream : l10n.searchOnlyAddon}';
+    return Row(
+      children: [
+        Container(
+          width: 6,
+          height: 6,
+          margin: const EdgeInsets.only(right: 8),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: manifest == null ? AppColors.textTertiary : AppColors.accent,
+          ),
+        ),
+        Flexible(
+          child: Text(
+            detail,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: context.adaptiveTextTertiary,

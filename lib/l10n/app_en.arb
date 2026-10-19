@@ -288,6 +288,72 @@
   "@addsPreDriveAndCatchesPeaks": {
     "description": "lib/features/settings/screens/equalizer_screen.dart:3393"
   },
+  "addons": "Addons",
+  "@addons": {
+    "description": "lib/features/search/models/search_category.dart:34"
+  },
+  "addonSourceSubtitle": "Third-party search and streaming source",
+  "@addonSourceSubtitle": {
+    "description": "lib/features/settings/screens/network_server_edit_screen.dart:108"
+  },
+  "addonSourceHelp": "Paste the addon's base URL. Flick reads its manifest and uses the addon's own search and streaming endpoints.",
+  "@addonSourceHelp": {
+    "description": "lib/features/settings/screens/network_server_edit_screen.dart:445"
+  },
+  "addonNoSignInNeeded": "Addons need no sign-in.",
+  "@addonNoSignInNeeded": {
+    "description": "lib/features/settings/screens/network_server_edit_screen.dart:111"
+  },
+  "addonSearchAndStream": "Search and stream",
+  "@addonSearchAndStream": {
+    "description": "lib/features/settings/screens/network_sources_screen.dart:360"
+  },
+  "searchOnlyAddon": "Search only",
+  "@searchOnlyAddon": {
+    "description": "lib/features/settings/screens/network_sources_screen.dart:358"
+  },
+  "addonsUnavailable": "Addons unavailable ({count})",
+  "@addonsUnavailable": {
+    "description": "lib/features/search/screens/search_screen.dart:625",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "addonStreamUnsupported": "This track is only offered as {kind}, which Flick cannot play.",
+  "@addonStreamUnsupported": {
+    "description": "lib/features/search/screens/search_screen.dart:731",
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      }
+    }
+  },
+  "addonEncryptedUnsupported": "This track is DRM-protected and cannot be played.",
+  "@addonEncryptedUnsupported": {
+    "description": "lib/features/search/screens/search_screen.dart:733"
+  },
+  "addonTrackUnavailable": "The addon no longer offers this track.",
+  "@addonTrackUnavailable": {
+    "description": "lib/features/search/screens/search_screen.dart:735"
+  },
+  "addonNotStreamable": "This addon provides no stream for this track.",
+  "@addonNotStreamable": {
+    "description": "lib/features/search/screens/search_screen.dart:737"
+  },
+  "addonDownloadsDisabled": "This addon does not allow downloads.",
+  "@addonDownloadsDisabled": {
+    "description": "lib/features/search/screens/search_screen.dart:739"
+  },
+  "addonRateLimited": "The addon is rate limiting requests. Try again shortly.",
+  "@addonRateLimited": {
+    "description": "lib/features/search/screens/search_screen.dart:741"
+  },
+  "addonUnreachable": "Could not reach the addon.",
+  "@addonUnreachable": {
+    "description": "lib/features/search/screens/search_screen.dart:746"
+  },
   "adjustAudioFrequencies": "Adjust audio frequencies",
   "@adjustAudioFrequencies": {
     "description": "lib/features/settings/screens/audio_settings_screen.dart:63"
@@ -7002,6 +7068,15 @@
   "removeCustomArt": "Remove Custom Art",
   "@removeCustomArt": {
     "description": "lib/features/songs/widgets/album_art_picker_bottom_sheet.dart:357"
+  },
+  "removeAddonMessage": "Remove \"{arg1}\"? Saved local files are kept.",
+  "@removeAddonMessage": {
+    "description": "lib/features/settings/screens/network_server_edit_screen.dart:354",
+    "placeholders": {
+      "arg1": {
+        "type": "Object"
+      }
+    }
   },
   "removeDuplicates": "Remove Duplicates",
   "@removeDuplicates": {

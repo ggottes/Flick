@@ -203,6 +203,52 @@ class AppLocalizationsZh extends AppLocalizations {
   String get addsPreDriveAndCatchesPeaks => '增加前置驱动，并针对最终输出上限抑制峰值。';
 
   @override
+  String get addons => '插件源';
+
+  @override
+  String get addonSourceSubtitle => '第三方搜索与流媒体源';
+
+  @override
+  String get addonSourceHelp => '粘贴插件源的基础地址。Flick 会读取它的清单，并使用该插件源自带的搜索与流媒体接口。';
+
+  @override
+  String get addonNoSignInNeeded => '插件源无需登录。';
+
+  @override
+  String get addonSearchAndStream => '搜索与播放';
+
+  @override
+  String get searchOnlyAddon => '仅搜索';
+
+  @override
+  String addonsUnavailable(int count) {
+    return '$count 个插件源不可用';
+  }
+
+  @override
+  String addonStreamUnsupported(String kind) {
+    return '此歌曲仅提供 $kind 版本，Flick 无法播放。';
+  }
+
+  @override
+  String get addonEncryptedUnsupported => '此歌曲受 DRM 保护，无法播放。';
+
+  @override
+  String get addonTrackUnavailable => '该插件源已不再提供此歌曲。';
+
+  @override
+  String get addonNotStreamable => '该插件源没有为此歌曲提供可播放的流。';
+
+  @override
+  String get addonDownloadsDisabled => '该插件源不允许下载。';
+
+  @override
+  String get addonRateLimited => '插件源正在限制请求频率，请稍后再试。';
+
+  @override
+  String get addonUnreachable => '无法连接该插件源。';
+
+  @override
   String get adjustAudioFrequencies => '调整音频频率';
 
   @override
@@ -4874,6 +4920,11 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get removeCustomArt => '移除自定义封面';
+
+  @override
+  String removeAddonMessage(Object arg1) {
+    return '移除「$arg1」？本地已保存的文件会保留。';
+  }
 
   @override
   String get removeDuplicates => '移除重复项';

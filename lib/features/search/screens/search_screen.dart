@@ -6,17 +6,22 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flick/core/constants/app_constants.dart';
 import 'package:flick/core/theme/app_colors.dart';
 import 'package:flick/core/theme/adaptive_color_provider.dart';
+import 'package:flick/data/database.dart';
 import 'package:flick/data/repositories/song_repository.dart';
 import 'package:flick/models/nav_bar_config.dart';
 import 'package:flick/models/song.dart';
 import 'package:flick/providers/providers.dart';
 import 'package:flick/services/player_service.dart';
+import 'package:flick/services/sources/addon_models.dart';
+import 'package:flick/services/sources/addon_service.dart';
 import 'package:flick/widgets/common/cached_image_widget.dart';
+import 'package:flick/widgets/common/flick_snackbar.dart';
 import 'package:flick/widgets/common/flick_artwork_placeholder.dart';
 import 'package:flick/widgets/common/glass_search_bar.dart';
 import 'package:flick/features/songs/widgets/song_actions_bottom_sheet.dart';
 import 'package:flick/features/search/models/search_category.dart';
 import 'package:flick/features/search/models/global_search_results.dart';
+import 'package:flick/features/search/providers/addon_search_provider.dart';
 import 'package:flick/features/search/providers/global_search_provider.dart';
 import 'package:flick/features/search/providers/search_filter_provider.dart';
 import 'package:flick/features/search/widgets/search_filter_chips.dart';
@@ -101,6 +106,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final hasQuery = repoQuery.isNotEmpty;
     final resultsAsync =
         hasQuery ? ref.watch(globalSearchResultsProvider(repoQuery)) : null;
+    // Network fan-out lives beside the local query so sections render in
+    // separately: local rows appear instantly, addons fill in when they answer.
+    final addonAsync =
+        hasQuery ? ref.watch(addonSearchProvider(repoQuery)) : null;
+    final addonResults = addonAsync?.value ?? AddonSearchResults.empty;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -148,7 +158,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               padding: const EdgeInsets.only(bottom: 8),
               child: Builder(
                 builder: (context) {
-                  final counts = resultsAsync?.value?.counts;
+                  final localCounts = resultsAsync?.value?.counts;
+                  final counts = localCounts == null
+                      ? null
+                      : {
+                          ...localCounts,
+                          SearchCategory.addon: addonResults.hits.length,
+                        };
                   return SearchFilterChips(
                     enabled: enabled,
                     isAllEnabled: isAllEnabled,
@@ -169,6 +185,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       context,
                       hasQuery: hasQuery,
                       resultsAsync: resultsAsync,
+                      addonAsync: addonAsync,
+                      addonResults: addonResults,
                       enabled: enabled,
                     ),
             ),
@@ -182,6 +200,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     BuildContext context, {
     required bool hasQuery,
     required AsyncValue<GlobalSearchResults>? resultsAsync,
+    required AsyncValue<AddonSearchResults>? addonAsync,
+    required AddonSearchResults addonResults,
     required Set<SearchCategory> enabled,
   }) {
     if (!hasQuery) {
@@ -199,14 +219,31 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         if (enabled.isEmpty) {
           return _buildFilteredEmpty(context);
         }
+        final addonEnabled = enabled.contains(SearchCategory.addon);
         // Check if no enabled category has results.
         final anyEnabledHasResults = SearchCategory.values.any(
           (c) => enabled.contains(c) && results.hasResultsFor(c),
         );
-        if (!anyEnabledHasResults) {
+        final addonHasHits = addonEnabled && addonResults.isNotEmpty;
+        // A failed fan-out still deserves its own line; showing "no results"
+        // alone would hide that the addons never answered.
+        final addonFailed = addonEnabled &&
+            addonResults.hits.isEmpty &&
+            addonResults.errors.isNotEmpty;
+        if (!anyEnabledHasResults && !addonHasHits && !addonFailed) {
+          // The addon fan-out is slower than the local Isar query. Rather than
+          // flashing "no results" while it is still flying, hold the spinner.
+          if (addonEnabled && (addonAsync?.isLoading ?? false)) {
+            return const Center(
+              child: CircularProgressIndicator(
+                color: AppColors.textTertiary,
+                strokeWidth: 2,
+              ),
+            );
+          }
           return _buildNoResults(context, results.query);
         }
-        return _buildGroupedResults(context, results, enabled);
+        return _buildGroupedResults(context, results, enabled, addonResults);
       },
       loading: () => const Center(
         child: CircularProgressIndicator(
@@ -338,6 +375,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     BuildContext context,
     GlobalSearchResults results,
     Set<SearchCategory> enabled,
+    AddonSearchResults addonResults,
   ) {
     final slivers = <Widget>[];
     void addSection({
@@ -545,12 +583,182 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       },
     );
 
+    if (enabled.contains(SearchCategory.addon)) {
+      _addAddonSection(slivers, addonResults);
+    }
+
     return CustomScrollView(
       slivers: [
         ...slivers,
         const SliverToBoxAdapter(child: SizedBox(height: 120)),
       ],
     );
+  }
+
+  /// Addon rows are ephemeral — they are not in the local library, so they get
+  /// a pre-flight before playback and no long-press actions.
+  void _addAddonSection(
+    List<Widget> slivers,
+    AddonSearchResults addonResults,
+  ) {
+    final hits = addonResults.hits;
+    if (hits.isEmpty) {
+      if (addonResults.errors.isEmpty) return;
+      slivers.add(
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppConstants.spacingLg,
+              AppConstants.spacingMd,
+              AppConstants.spacingLg,
+              AppConstants.spacingSm,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  SearchCategory.addon.icon,
+                  size: 14,
+                  color: context.adaptiveTextTertiary,
+                ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    l10n.addonsUnavailable(addonResults.errors.length),
+                    style: TextStyle(
+                      fontFamily: 'GoogleSansFlex',
+                      fontSize: 12,
+                      color: context.adaptiveTextTertiary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    final expanded = _isExpanded(SearchCategory.addon);
+    final visible = expanded ? hits : hits.take(_previewLimit).toList();
+    // The queue spans every hit, not just the preview rows: playback should
+    // continue through the addon's results even while the section is collapsed.
+    final queue = [for (final hit in hits) AddonService.songForHit(hit)];
+
+    slivers.add(_SectionHeader(
+      category: SearchCategory.addon,
+      count: hits.length,
+      showSeeAll: hits.length > _previewLimit,
+      expanded: expanded,
+      onToggle: () => _toggleExpanded(SearchCategory.addon),
+    ));
+    slivers.add(
+      SliverList.builder(
+        itemCount: visible.length,
+        itemBuilder: (c, i) {
+          final song = queue[i];
+          return _SongTile(
+            song: song,
+            playlistForMode: queue,
+            repository: _songRepository,
+            onPlay: (_, __) => _playAddon(song, queue),
+            subtitleSuffix: hits[i].manifest.displayName,
+            showActions: false,
+          );
+        },
+      ),
+    );
+    if (hits.length > _previewLimit && !expanded) {
+      slivers.add(
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppConstants.spacingLg,
+              2,
+              AppConstants.spacingLg,
+              AppConstants.spacingSm,
+            ),
+            child: GestureDetector(
+              onTap: () => _toggleExpanded(SearchCategory.addon),
+              child: Text(
+                l10n.seeAll2(hits.length),
+                style: TextStyle(
+                  fontFamily: 'GoogleSansFlex',
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.accent.withValues(alpha: 0.9),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    slivers.add(const SliverToBoxAdapter(child: SizedBox(height: 8)));
+  }
+
+  /// Resolve the stream descriptor *before* handing the song to the player:
+  /// `resolveHttpPlayback` swallows failures, so an HLS/DASH/encrypted answer
+  /// discovered later would only stop a spinner the user already saw.
+  Future<void> _playAddon(Song song, List<Song> playlist) async {
+    final serverId = song.remoteServerId;
+    final remoteId = song.remoteId;
+    if (serverId == null || remoteId == null) return;
+    final server = await Database.networkServers.get(serverId);
+    if (server == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showFlickSnackBar(
+        SnackBar(content: Text(l10n.addonUnreachable)),
+      );
+      return;
+    }
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await AddonService.instance.preflight(server, remoteId);
+    } on AddonException catch (e) {
+      if (!mounted) return;
+      messenger.showFlickSnackBar(SnackBar(content: Text(_addonMessage(e))));
+      return;
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showFlickSnackBar(SnackBar(content: Text(l10n.syncFailed(e))));
+      return;
+    }
+    if (!mounted) return;
+
+    final notifier = ref.read(playerProvider.notifier);
+    final mode = ref.read(appPreferencesProvider).searchPlaybackMode;
+    if (mode == 'queue' && ref.read(playerProvider).currentSong != null) {
+      final queueIndex = await notifier.addToQueue(song);
+      await notifier.playFromQueueIndex(queueIndex);
+      return;
+    }
+    // `library` means "play in the context of the whole library"; addon tracks
+    // are not in it, so queue-mode is the only special case worth honouring.
+    await notifier.play(song, playlist: playlist);
+  }
+
+  String _addonMessage(AddonException e) {
+    switch (e.code) {
+      case AddonErrorCode.unsupportedStream:
+        return l10n.addonStreamUnsupported(e.kind ?? 'HLS/DASH');
+      case AddonErrorCode.encrypted:
+        return l10n.addonEncryptedUnsupported;
+      case AddonErrorCode.trackUnavailable:
+        return l10n.addonTrackUnavailable;
+      case AddonErrorCode.notStreamable:
+        return l10n.addonNotStreamable;
+      case AddonErrorCode.downloadsDisabled:
+        return l10n.addonDownloadsDisabled;
+      case AddonErrorCode.rateLimited:
+        return l10n.addonRateLimited;
+      case AddonErrorCode.notAnAddon:
+      case AddonErrorCode.noSearchResource:
+      case AddonErrorCode.addonError:
+      case AddonErrorCode.unreachable:
+        return l10n.addonUnreachable;
+    }
   }
 
   Future<void> _playSong(Song song, List<Song> playlist) async {
@@ -693,12 +901,17 @@ class _SongTile extends ConsumerWidget {
   final Future<void> Function(Song, List<Song>) onPlay;
   final String? subtitleSuffix;
 
+  /// False for source-backed rows with no database entry: the actions sheet
+  /// (favorite/edit/delete) would target a song that does not exist.
+  final bool showActions;
+
   const _SongTile({
     required this.song,
     required this.playlistForMode,
     required this.repository,
     required this.onPlay,
     this.subtitleSuffix,
+    this.showActions = true,
   });
 
   @override
@@ -753,7 +966,8 @@ class _SongTile extends ConsumerWidget {
         ),
       ),
       onTap: () => onPlay(song, playlistForMode),
-      onLongPress: () => SongActionsBottomSheet.show(context, song),
+      onLongPress:
+          showActions ? () => SongActionsBottomSheet.show(context, song) : null,
     );
   }
 }

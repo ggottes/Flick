@@ -5,6 +5,11 @@ import '../models/search_category.dart';
 class SearchFilterNotifier extends Notifier<Set<SearchCategory>> {
   static const _key = 'search_enabled_categories';
 
+  /// Set once the addon category has been folded into an existing stored
+  /// filter. Without it, a user who later disables "addons" would see it come
+  /// back enabled on the next launch.
+  static const _addonMigrationKey = 'search_categories_addon_migrated';
+
   @override
   Set<SearchCategory> build() {
     // Default: all enabled.
@@ -30,9 +35,24 @@ class SearchFilterNotifier extends Notifier<Set<SearchCategory>> {
           .toSet();
       // If stored list contained only unknown keys, keep default all.
       if (parsed.isNotEmpty || stored.isEmpty) {
-        state = parsed;
+        state = _migrateAddonCategory(prefs, parsed);
       }
     } catch (_) {}
+  }
+
+  /// The addon category arrived after filters were first persisted. A stored
+  /// list therefore describes a UI that had no addons at all, so it must not
+  /// silently mean "addons off" — fold it in once, then remember that we did.
+  Set<SearchCategory> _migrateAddonCategory(
+    SharedPreferences prefs,
+    Set<SearchCategory> parsed,
+  ) {
+    if (prefs.getBool(_addonMigrationKey) ?? false) return parsed;
+    prefs.setBool(_addonMigrationKey, true);
+    if (parsed.isEmpty || parsed.contains(SearchCategory.addon)) return parsed;
+    final next = {...parsed, SearchCategory.addon};
+    _save(next);
+    return next;
   }
 
   Future<void> _save(Set<SearchCategory> value) async {

@@ -54,6 +54,10 @@ class GlobalSearchResults {
         return yearMatches.length;
       case SearchCategory.playlists:
         return playlists.length;
+      case SearchCategory.addon:
+        // Addon hits come from a network fan-out, not the Isar query; the
+        // screen merges their count into the chip row itself.
+        return 0;
     }
   }
 

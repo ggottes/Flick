@@ -443,6 +443,90 @@ abstract class AppLocalizations {
   /// **'Adds pre-drive and catches peaks against a final output ceiling.'**
   String get addsPreDriveAndCatchesPeaks;
 
+  /// lib/features/search/models/search_category.dart:34
+  ///
+  /// In en, this message translates to:
+  /// **'Addons'**
+  String get addons;
+
+  /// lib/features/settings/screens/network_server_edit_screen.dart:108
+  ///
+  /// In en, this message translates to:
+  /// **'Third-party search and streaming source'**
+  String get addonSourceSubtitle;
+
+  /// lib/features/settings/screens/network_server_edit_screen.dart:445
+  ///
+  /// In en, this message translates to:
+  /// **'Paste the addon\'s base URL. Flick reads its manifest and uses the addon\'s own search and streaming endpoints.'**
+  String get addonSourceHelp;
+
+  /// lib/features/settings/screens/network_server_edit_screen.dart:111
+  ///
+  /// In en, this message translates to:
+  /// **'Addons need no sign-in.'**
+  String get addonNoSignInNeeded;
+
+  /// lib/features/settings/screens/network_sources_screen.dart:360
+  ///
+  /// In en, this message translates to:
+  /// **'Search and stream'**
+  String get addonSearchAndStream;
+
+  /// lib/features/settings/screens/network_sources_screen.dart:358
+  ///
+  /// In en, this message translates to:
+  /// **'Search only'**
+  String get searchOnlyAddon;
+
+  /// lib/features/search/screens/search_screen.dart:625
+  ///
+  /// In en, this message translates to:
+  /// **'Addons unavailable ({count})'**
+  String addonsUnavailable(int count);
+
+  /// lib/features/search/screens/search_screen.dart:731
+  ///
+  /// In en, this message translates to:
+  /// **'This track is only offered as {kind}, which Flick cannot play.'**
+  String addonStreamUnsupported(String kind);
+
+  /// lib/features/search/screens/search_screen.dart:733
+  ///
+  /// In en, this message translates to:
+  /// **'This track is DRM-protected and cannot be played.'**
+  String get addonEncryptedUnsupported;
+
+  /// lib/features/search/screens/search_screen.dart:735
+  ///
+  /// In en, this message translates to:
+  /// **'The addon no longer offers this track.'**
+  String get addonTrackUnavailable;
+
+  /// lib/features/search/screens/search_screen.dart:737
+  ///
+  /// In en, this message translates to:
+  /// **'This addon provides no stream for this track.'**
+  String get addonNotStreamable;
+
+  /// lib/features/search/screens/search_screen.dart:739
+  ///
+  /// In en, this message translates to:
+  /// **'This addon does not allow downloads.'**
+  String get addonDownloadsDisabled;
+
+  /// lib/features/search/screens/search_screen.dart:741
+  ///
+  /// In en, this message translates to:
+  /// **'The addon is rate limiting requests. Try again shortly.'**
+  String get addonRateLimited;
+
+  /// lib/features/search/screens/search_screen.dart:746
+  ///
+  /// In en, this message translates to:
+  /// **'Could not reach the addon.'**
+  String get addonUnreachable;
+
   /// lib/features/settings/screens/audio_settings_screen.dart:63
   ///
   /// In en, this message translates to:
@@ -8901,6 +8985,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Remove Custom Art'**
   String get removeCustomArt;
+
+  /// lib/features/settings/screens/network_server_edit_screen.dart:354
+  ///
+  /// In en, this message translates to:
+  /// **'Remove \"{arg1}\"? Saved local files are kept.'**
+  String removeAddonMessage(Object arg1);
 
   /// lib/features/settings/screens/library_settings_screen.dart:2147
   ///

@@ -215,6 +215,56 @@ class AppLocalizationsEn extends AppLocalizations {
       'Adds pre-drive and catches peaks against a final output ceiling.';
 
   @override
+  String get addons => 'Addons';
+
+  @override
+  String get addonSourceSubtitle => 'Third-party search and streaming source';
+
+  @override
+  String get addonSourceHelp =>
+      'Paste the addon\'s base URL. Flick reads its manifest and uses the addon\'s own search and streaming endpoints.';
+
+  @override
+  String get addonNoSignInNeeded => 'Addons need no sign-in.';
+
+  @override
+  String get addonSearchAndStream => 'Search and stream';
+
+  @override
+  String get searchOnlyAddon => 'Search only';
+
+  @override
+  String addonsUnavailable(int count) {
+    return 'Addons unavailable ($count)';
+  }
+
+  @override
+  String addonStreamUnsupported(String kind) {
+    return 'This track is only offered as $kind, which Flick cannot play.';
+  }
+
+  @override
+  String get addonEncryptedUnsupported =>
+      'This track is DRM-protected and cannot be played.';
+
+  @override
+  String get addonTrackUnavailable => 'The addon no longer offers this track.';
+
+  @override
+  String get addonNotStreamable =>
+      'This addon provides no stream for this track.';
+
+  @override
+  String get addonDownloadsDisabled => 'This addon does not allow downloads.';
+
+  @override
+  String get addonRateLimited =>
+      'The addon is rate limiting requests. Try again shortly.';
+
+  @override
+  String get addonUnreachable => 'Could not reach the addon.';
+
+  @override
   String get adjustAudioFrequencies => 'Adjust audio frequencies';
 
   @override
@@ -5192,6 +5242,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get removeCustomArt => 'Remove Custom Art';
+
+  @override
+  String removeAddonMessage(Object arg1) {
+    return 'Remove \"$arg1\"? Saved local files are kept.';
+  }
 
   @override
   String get removeDuplicates => 'Remove Duplicates';

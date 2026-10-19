@@ -1,6 +1,7 @@
 import '../../data/database.dart';
 import '../../data/repositories/song_repository.dart';
 import '../library_scanner_service.dart' show ScanProgress;
+import 'addon_service.dart';
 import 'jellyfin_service.dart';
 import 'smb_service.dart';
 import 'subsonic_service.dart';
@@ -82,7 +83,10 @@ class NetworkProtocol {
   static const smb = 'smb';
   static const tidal = 'tidal';
 
-  static const all = [subsonic, jellyfin, webdav, upnp, smb, tidal];
+  /// Generic third-party addon (search/stream over HTTP JSON).
+  static const addon = 'addon';
+
+  static const all = [subsonic, jellyfin, webdav, upnp, smb, tidal, addon];
 }
 
 final Map<String, NetworkSourceService> _registry = {};
@@ -98,6 +102,7 @@ void _ensureSeeded() {
     UpnpService.instance,
     SmbService.instance,
     TidalService.instance,
+    AddonService.instance,
   ]) {
     _registry[s.protocol] = s;
   }

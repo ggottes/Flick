@@ -17,6 +17,7 @@ import '../../../core/utils/responsive.dart';
 import '../../../data/database.dart';
 import '../../../data/repositories/song_repository.dart';
 import '../../../services/playlist_service.dart';
+import '../../../services/sources/addon_service.dart';
 import '../../../services/sources/jellyfin_service.dart';
 import '../../../services/sources/network_source_service.dart';
 import '../../../services/sources/tidal_service.dart';
@@ -101,6 +102,14 @@ List<_ProtocolMeta> _protocolsFor(AppLocalizations l10n) => [
     urlHint: TidalService.tidalBaseUrl,
     passwordHelper: l10n.oauthSignInNoPasswordStored,
   ),
+  _ProtocolMeta(
+    id: NetworkProtocol.addon,
+    label: l10n.addons,
+    subtitle: l10n.addonSourceSubtitle,
+    icon: LucideIcons.plug,
+    urlHint: 'https://addon.example.com',
+    passwordHelper: l10n.addonNoSignInNeeded,
+  ),
 ];
 
 class _NetworkServerEditScreenState extends State<NetworkServerEditScreen> {
@@ -121,6 +130,9 @@ class _NetworkServerEditScreenState extends State<NetworkServerEditScreen> {
   bool get _isNew => widget.server == null;
 
   bool get _isTidal => _selectedProtocol == NetworkProtocol.tidal;
+
+  /// Addons are public HTTP endpoints: no username, password or sign-in.
+  bool get _isAddon => _selectedProtocol == NetworkProtocol.addon;
 
   /// Tidal OAuth token resolved during this session (device-code login).
   String? _resolvedToken;
@@ -172,6 +184,11 @@ class _NetworkServerEditScreenState extends State<NetworkServerEditScreen> {
       if (_resolvedToken != null) return _resolvedToken;
       return widget.server?.token;
     }
+    if (_isAddon) {
+      // There is no password to type, but the manifest blob is still the
+      // credential: fetch it so the list screen can show the addon's name.
+      return AddonService.instance.resolveToken(_draftEntity(), '');
+    }
     final password = _passwordController.text;
     if (password.isNotEmpty) {
       final draft = _draftEntity(token: null);
@@ -195,7 +212,10 @@ class _NetworkServerEditScreenState extends State<NetworkServerEditScreen> {
       ..protocol = _selectedProtocol
       ..baseUrl = _isTidal
           ? TidalService.tidalBaseUrl
-          : _urlController.text.trim().replaceAll(RegExp(r'/+$'), '')
+          : _isAddon
+              ? (AddonService.normalizeRoot(_urlController.text) ??
+                  _urlController.text.trim())
+              : _urlController.text.trim().replaceAll(RegExp(r'/+$'), '')
       ..username = _usernameController.text.trim().isEmpty
           ? null
           : _usernameController.text.trim()
@@ -328,8 +348,11 @@ class _NetworkServerEditScreenState extends State<NetworkServerEditScreen> {
     final confirmed = await FlickDialogs.confirm(
       context,
       title: l10n.removeServer,
-      message:
-          l10n.deleteAndAllSongsAndPlaylists(server.label),
+      message: server.protocol == NetworkProtocol.addon
+          // An addon has no library rows to delete, so promising songs would
+          // be false.
+          ? l10n.removeAddonMessage(server.label)
+          : l10n.deleteAndAllSongsAndPlaylists(server.label),
       confirmLabel: l10n.delete,
       destructive: true,
     );
@@ -412,6 +435,19 @@ class _NetworkServerEditScreenState extends State<NetworkServerEditScreen> {
                     ),
               ),
             ),
+          if (_isAddon)
+            Padding(
+              padding: const EdgeInsets.only(
+                left: AppConstants.spacingXs,
+                top: AppConstants.spacingSm,
+              ),
+              child: Text(
+                l10n.addonSourceHelp,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: context.adaptiveTextTertiary,
+                    ),
+              ),
+            ),
           if (_isTidal)
             Padding(
               padding: const EdgeInsets.only(
@@ -444,22 +480,24 @@ class _NetworkServerEditScreenState extends State<NetworkServerEditScreen> {
                   hint: _meta.urlHint,
                   keyboardType: TextInputType.url,
                 ),
-                const SettingsDivider(),
-                _TextFieldSetting(
-                  controller: _usernameController,
-                  icon: LucideIcons.user,
-                  label: l10n.username,
-                ),
-                const SettingsDivider(),
-                _TextFieldSetting(
-                  controller: _passwordController,
-                  icon: LucideIcons.lock,
-                  label: l10n.password,
-                  obscureText: true,
-                  helperText: _isNew
-                      ? _meta.passwordHelper
-                      : l10n.leaveEmptyToKeepTheCurrent,
-                ),
+                if (!_isAddon) ...[
+                  const SettingsDivider(),
+                  _TextFieldSetting(
+                    controller: _usernameController,
+                    icon: LucideIcons.user,
+                    label: l10n.username,
+                  ),
+                  const SettingsDivider(),
+                  _TextFieldSetting(
+                    controller: _passwordController,
+                    icon: LucideIcons.lock,
+                    label: l10n.password,
+                    obscureText: true,
+                    helperText: _isNew
+                        ? _meta.passwordHelper
+                        : l10n.leaveEmptyToKeepTheCurrent,
+                  ),
+                ],
               ],
             ],
           ),
